@@ -1,6 +1,8 @@
 require 'knapsack'
 
-Knapsack::Adapters::RSpecAdapter.bind
+if ENV['KNAPSACK_GENERATE_REPORT'] || ENV['CI_NODE_TOTAL'] || ENV['CI_NODE_INDEX']
+  Knapsack::Adapters::RSpecAdapter.bind
+end
 
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|
