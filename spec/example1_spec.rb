@@ -9,6 +9,6 @@ RSpec.describe 'Example1' do
     expect do
       client = Mysql2::Client.new(host: ENV.fetch('MYSQL_HOST', 'localhost'))
       client.query("SHOW DATABASES")
-    end.not_to raise_error(Mysql2::Error)
+    end.not_to raise_error
   end
 end

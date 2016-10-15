@@ -17,6 +17,7 @@ parallel(
 
                 withMysql { mysqlLink, dbHostName ->
                     withRuby('2.3', "-e CI_NODE_INDEX=${env.CI_NODE_INDEX} -e CI_NODE_TOTAL=${env.CI_NODE_TOTAL} --link=${mysqlLink}") {
+                        // MYSQL_HOST env var is used by application to establish connection with the database
                         withEnv(["MYSQL_HOST=$dbHostName"]) {
                             sh "bundle install --quiet --frozen"
                             sh 'bundle exec rake knapsack:rspec'
