@@ -1,73 +1,56 @@
 stage 'Checkout'
 
 node {
-  checkout(scm)
-  pack()
+    checkout(scm)
+    stash 'source'
 }
 
 stage 'Tests'
 
 parallel(
-  knapsack(2) {
-    withRvm('ruby-2.3.1') {
-      unpack()
-      try {
-        bundle()
-        sh 'bundle exec rake knapsack:rspec'
-      } finally {
-        clearWorkspace()
-      }
+    knapsack(2) {
+        node {
+            withCleanup {
+                unstash 'source'
+                withRvm('ruby-2.3.1') {
+                    sh 'bundle install'
+                    sh 'bundle exec rake knapsack:rspec'
+                }
+            }
+        }
     }
-  }
 )
 
-
 def knapsack(ci_node_total, cl) {
-  def nodes = [:]
+    def nodes = [:]
 
-  for(int i = 0; i < ci_node_total; i++) {
-    def index = i;
-    nodes["ci_node_${i}"] = {
-      node {
-        withEnv(["CI_NODE_INDEX=$index", "CI_NODE_TOTAL=$ci_node_total"]) {
-          cl()
+    for(int i = 0; i < ci_node_total; i++) {
+        def index = i;
+        nodes["ci_node_${i}"] = {
+            withEnv(["CI_NODE_INDEX=$index", "CI_NODE_TOTAL=$ci_node_total"]) {
+                cl()
+            }
         }
-      }
     }
-  }
 
-  return nodes;
+    return nodes;
 }
+
 // Helper functions
 
-def pack() {
-    stash excludes: '.git/**/*', includes: '**/*', name: 'source'
-    clearWorkspace()
+def withCleanup(Closure cl) {
+    deleteDir()
+    try {
+        cl()
+    } finally {
+        deleteDir()
+    }
 }
-
-def unpack() {
-    clearWorkspace()
-    unstash 'source'
-}
-
-def bundler() {
-    sh "gem install bundler -- --silent --quiet --no-verbose --no-document"
-}
-
-def bundle() {
-    bundler()
-    sh "bundle --quiet"
-}
-
 
 def withRvm(version, cl) {
     withRvm(version, "executor-${env.EXECUTOR_NUMBER}") {
         cl()
     }
-}
-
-def clearWorkspace() {
-    sh 'rm -rf *'
 }
 
 def withRvm(version, gemset, cl) {
@@ -90,8 +73,8 @@ def withRvm(version, gemset, cl) {
         "MY_RUBY_HOME=$RVM_HOME/rubies/$version",
         "IRBRC=$RVM_HOME/rubies/$version/.irbrc",
         "RUBY_VERSION=$version"
-    ]) {
-        sh 'rvm info'
-        cl()
+        ]) {
+            sh 'gem install bundler'
+            cl()
+        }
     }
-}
