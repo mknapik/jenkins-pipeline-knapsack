@@ -2,7 +2,8 @@
 # A sample Gemfile
 source "https://rubygems.org"
 
-# gem "rails"
+gem 'mysql2'
+
 group 'development' do
   gem 'rspec'
 end
