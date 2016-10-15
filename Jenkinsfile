@@ -10,11 +10,11 @@ node {
 stage 'Tests'
 
 parallel(
-    knapsack(2) {
+    knapsack(2) { ci_node_index, ci_node_total ->
         node('docker') {
             withCleanup {
                 unstash 'source'
-                docker.image('ruby:2.3').inside("-e CI_NODE_INDEX=${env.CI_NODE_INDEX} -e CI_NODE_TOTAL=${env.CI_NODE_TOTAL}") {
+                docker.image('ruby:2.3').inside("-e CI_NODE_INDEX=${ci_node_index} -e CI_NODE_TOTAL=${ci_node_total}") {
                     sh 'bundle install --frozen'
                     sh 'bundle exec rake knapsack:rspec'
                 }
@@ -29,9 +29,7 @@ def knapsack(ci_node_total, cl) {
     for(int i = 0; i < ci_node_total; i++) {
         def index = i;
         nodes["ci_node_${i}"] = {
-            withEnv(["CI_NODE_INDEX=$index", "CI_NODE_TOTAL=$ci_node_total"]) {
-                cl()
-            }
+            cl(index, ci_node_total)
         }
     }
 
