@@ -1,97 +1,48 @@
 stage 'Checkout'
 
 node {
-  checkout(scm)
-  pack()
+    withCleanup {
+        checkout(scm)
+        stash 'source'
+    }
 }
 
 stage 'Tests'
 
 parallel(
-  knapsack(2) {
-    withRvm('ruby-2.3.1') {
-      unpack()
-      try {
-        bundle()
-        sh 'bundle exec rake knapsack:rspec'
-      } finally {
-        clearWorkspace()
-      }
+    knapsack(2) {
+        node('docker') {
+            withCleanup {
+                unstash 'source'
+                docker.image('ruby:2.3').inside("-e CI_NODE_INDEX=${env.CI_NODE_INDEX} -e CI_NODE_TOTAL=${env.CI_NODE_TOTAL}") {
+                    sh 'bundle install --frozen'
+                    sh 'bundle exec rake knapsack:rspec'
+                }
+            }
+        }
     }
-  }
 )
 
-
 def knapsack(ci_node_total, cl) {
-  def nodes = [:]
+    def nodes = [:]
 
-  for(int i = 0; i < ci_node_total; i++) {
-    def index = i;
-    nodes["ci_node_${i}"] = {
-      node {
-        withEnv(["CI_NODE_INDEX=$index", "CI_NODE_TOTAL=$ci_node_total"]) {
-          cl()
+    for(int i = 0; i < ci_node_total; i++) {
+        def index = i;
+        nodes["ci_node_${i}"] = {
+            withEnv(["CI_NODE_INDEX=$index", "CI_NODE_TOTAL=$ci_node_total"]) {
+                cl()
+            }
         }
-      }
     }
-  }
 
-  return nodes;
-}
-// Helper functions
-
-def pack() {
-    stash excludes: '.git/**/*', includes: '**/*', name: 'source'
-    clearWorkspace()
+    return nodes;
 }
 
-def unpack() {
-    clearWorkspace()
-    unstash 'source'
-}
-
-def bundler() {
-    sh "gem install bundler -- --silent --quiet --no-verbose --no-document"
-}
-
-def bundle() {
-    bundler()
-    sh "bundle --quiet"
-}
-
-
-def withRvm(version, cl) {
-    withRvm(version, "executor-${env.EXECUTOR_NUMBER}") {
+def withCleanup(Closure cl) {
+    deleteDir()
+    try {
         cl()
-    }
-}
-
-def clearWorkspace() {
-    sh 'rm -rf *'
-}
-
-def withRvm(version, gemset, cl) {
-    RVM_HOME='$HOME/.rvm'
-    paths = [
-        "$RVM_HOME/gems/$version@$gemset/bin",
-        "$RVM_HOME/gems/$version@global/bin",
-        "$RVM_HOME/rubies/$version/bin",
-        "$RVM_HOME/bin",
-        "${env.PATH}"
-    ]
-    def path = paths.join(':')
-    withEnv(["PATH=${env.PATH}:$RVM_HOME", "RVM_HOME=$RVM_HOME"]) {
-        sh "set +x; source $RVM_HOME/scripts/rvm; rvm use --create --install --binary $version@$gemset"
-    }
-    withEnv([
-        "PATH=$path",
-        "GEM_HOME=$RVM_HOME/gems/$version@$gemset",
-        "GEM_PATH=$RVM_HOME/gems/$version@$gemset:$RVM_HOME/gems/$version@global",
-        "MY_RUBY_HOME=$RVM_HOME/rubies/$version",
-        "IRBRC=$RVM_HOME/rubies/$version/.irbrc",
-        "RUBY_VERSION=$version"
-    ]) {
-        sh 'rvm info'
-        cl()
+    } finally {
+        deleteDir()
     }
 }
